@@ -6,7 +6,7 @@ class MqttConstants {
   MqttConstants._();
 
   // ── Broker connection ──────────────────────────────────────────────────────
-  static const String brokerHost = 'broker.hivemq.com';
+  static const String brokerHost = 'broker.emqx.io';
   static const int brokerPort = 1883;
 
   /// Prefix for the dynamically generated client ID.

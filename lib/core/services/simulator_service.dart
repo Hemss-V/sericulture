@@ -62,7 +62,7 @@ class SimulatorService {
       _client?.disconnect();
       
       if (kIsWeb && !_useSecureWeb) {
-        debugPrint('Simulator: Web connection failed. Falling back to secure WSS (8884)...');
+        debugPrint('Simulator: Web connection failed. Falling back to secure WSS (8084)...');
         _useSecureWeb = true;
         Future.delayed(const Duration(milliseconds: 500), _connectLoop);
         return;

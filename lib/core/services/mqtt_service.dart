@@ -59,7 +59,7 @@ class MqttService extends StateNotifier<String> {
       _client!.disconnect();
       
       if (kIsWeb && !_useSecureWeb) {
-        debugPrint('MQTT App: Web connection on port 8000 failed. Falling back to secure WSS (8884)...');
+        debugPrint('MQTT App: Web connection on port 8083 failed. Falling back to secure WSS (8084)...');
         _useSecureWeb = true;
         state = 'disconnected';
         _scheduleReconnect(delayMs: 500); // Quick retry for fallback
