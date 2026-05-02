@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/services/storage_service.dart';
+import 'core/providers/mqtt_providers.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/shell/main_shell.dart';
@@ -30,11 +31,19 @@ Future<void> main() async {
   );
 
   // Determine the start screen based on the restored session.
-  // StorageService is already initialised, so getUser() is safe here.
   final savedUser = StorageService.instance.getUser();
 
+  // Initialise global ProviderContainer to start services before runApp
+  final container = ProviderContainer();
+
+  // Kick off MQTT connection and Simulator. 
+  // We do not wait for them to finish; they connect asynchronously.
+  container.read(mqttServiceProvider.notifier).connect();
+  container.read(simulatorServiceProvider).start();
+
   runApp(
-    ProviderScope(
+    UncontrolledProviderScope(
+      container: container,
       child: SericultureApp(startAuthenticated: savedUser != null),
     ),
   );

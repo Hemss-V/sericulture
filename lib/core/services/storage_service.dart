@@ -33,16 +33,45 @@ class StorageService {
   }
 
   /// Seeds threshold and notification defaults on first run.
+  /// Also validates and re-seeds any key whose stored value cannot be parsed,
+  /// preventing stale or corrupt web-localStorage data from crashing the app.
   Future<void> _seedDefaultsIfNeeded() async {
+    // Thresholds
     if (!_prefs.containsKey(_keyThresholds)) {
-      final defaults = <String, double>{...ThresholdConstants.defaults};
-      await _prefs.setString(_keyThresholds, jsonEncode(defaults));
+      await _prefs.setString(
+        _keyThresholds,
+        jsonEncode(ThresholdConstants.defaults),
+      );
+    } else {
+      // Validate — re-seed if the stored value cannot be decoded.
+      try {
+        final raw = _prefs.getString(_keyThresholds)!;
+        jsonDecode(raw) as Map<String, dynamic>;
+      } catch (_) {
+        await _prefs.setString(
+          _keyThresholds,
+          jsonEncode(ThresholdConstants.defaults),
+        );
+      }
     }
+
+    // Notification prefs
     if (!_prefs.containsKey(_keyNotifPrefs)) {
       await _prefs.setString(
         _keyNotifPrefs,
         jsonEncode(_defaultNotifPrefs()),
       );
+    } else {
+      // Validate — re-seed if the stored value cannot be decoded.
+      try {
+        final raw = _prefs.getString(_keyNotifPrefs)!;
+        jsonDecode(raw) as Map<String, dynamic>;
+      } catch (_) {
+        await _prefs.setString(
+          _keyNotifPrefs,
+          jsonEncode(_defaultNotifPrefs()),
+        );
+      }
     }
   }
 
@@ -141,7 +170,9 @@ class StorageService {
     if (raw == null) return _defaultNotifPrefs();
     try {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      return decoded.map((k, v) => MapEntry(k, v as bool));
+      // Use `v == true` instead of `v as bool` — safe against null, int, String,
+      // or any other unexpected type that may come from stale localStorage data.
+      return decoded.map((k, v) => MapEntry(k, v == true));
     } catch (_) {
       return _defaultNotifPrefs();
     }
