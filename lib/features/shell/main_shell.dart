@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
+import '../auth/providers/auth_provider.dart';
+import '../auth/screens/login_screen.dart';
 import '../dashboard/screens/dashboard_screen.dart';
 import '../charts/screens/charts_screen.dart';
 import '../alerts/screens/alerts_screen.dart';
@@ -11,7 +13,10 @@ import '../settings/screens/settings_screen.dart';
 /// Tracks the currently selected bottom nav index.
 final currentNavIndexProvider = StateProvider<int>((ref) => 0);
 
-/// Main shell with bottom navigation bar — wraps all 5 feature screens.
+/// Root shell displayed after a successful login.
+///
+/// Hosts 5 feature screens via [IndexedStack] and a bottom nav bar.
+/// Cannot be popped back to [LoginScreen] — the nav stack is cleared on login.
 class MainShell extends ConsumerWidget {
   const MainShell({super.key});
 
@@ -53,6 +58,16 @@ class MainShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Listen for logout — when auth state becomes unauthenticated, navigate to Login.
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next is AuthUnauthenticated) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+          (_) => false,
+        );
+      }
+    });
+
     final currentIndex = ref.watch(currentNavIndexProvider);
 
     return Scaffold(

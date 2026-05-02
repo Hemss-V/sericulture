@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/services/storage_service.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/screens/login_screen.dart';
 import 'features/shell/main_shell.dart';
 
-/// Entry point. Phase 2 will add async init (notifications, storage, MQTT).
-void main() {
+/// Initialises services before the widget tree is mounted, then runs the app.
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock orientation to portrait for this release.
-  SystemChrome.setPreferredOrientations([
+  // Initialise persistent storage and seed defaults on first run.
+  await StorageService.instance.init();
+
+  // Lock to portrait.
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Immersive dark status bar.
+  // Immersive dark system chrome.
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -24,24 +29,30 @@ void main() {
     ),
   );
 
+  // Determine the start screen based on the restored session.
+  // StorageService is already initialised, so getUser() is safe here.
+  final savedUser = StorageService.instance.getUser();
+
   runApp(
-    const ProviderScope(
-      child: SericultureApp(),
+    ProviderScope(
+      child: SericultureApp(startAuthenticated: savedUser != null),
     ),
   );
 }
 
-class SericultureApp extends ConsumerWidget {
-  const SericultureApp({super.key});
+class SericultureApp extends StatelessWidget {
+  /// Whether the app opens directly to [MainShell] (true) or [LoginScreen] (false).
+  final bool startAuthenticated;
+
+  const SericultureApp({super.key, required this.startAuthenticated});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Sericulture IoT',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      // Phase 1: start at Login; Phase 2 will check stored session and skip
-      home: const MainShell(),
+      home: startAuthenticated ? const MainShell() : const LoginScreen(),
     );
   }
 }
