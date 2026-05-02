@@ -42,8 +42,7 @@ class SimulatorService {
 
     final connMess = MqttConnectMessage()
         .withClientIdentifier(clientId)
-        .startClean()
-        .withWillQos(MqttQos.atLeastOnce);
+        .startClean();
     _client!.connectionMessage = connMess;
 
     _client!.onDisconnected = () {

@@ -47,8 +47,7 @@ class MqttService extends StateNotifier<String> {
 
     final connMess = MqttConnectMessage()
         .withClientIdentifier(clientId)
-        .startClean()
-        .withWillQos(MqttQos.atLeastOnce);
+        .startClean();
     _client!.connectionMessage = connMess;
 
     try {
