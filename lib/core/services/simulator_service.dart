@@ -21,9 +21,17 @@ class SimulatorService {
   bool _heater = false;
   bool _mister = false;
 
+  bool _useSecureWeb = false;
+
   Future<void> start() async {
-    final clientId = '${MqttConstants.clientIdPrefix}sim_${DateTime.now().millisecondsSinceEpoch}';
-    _client = getClient(MqttConstants.brokerHost, clientId);
+    _connectLoop();
+  }
+
+  Future<void> _connectLoop() async {
+    // Keep client ID under 23 chars to prevent silent broker disconnects
+    final randId = _rand.nextInt(99999);
+    final clientId = 'seri_s${DateTime.now().millisecondsSinceEpoch % 100000}_$randId';
+    _client = getClient(MqttConstants.brokerHost, clientId, isSecure: _useSecureWeb);
 
     if (!kIsWeb) {
       _client!.port = MqttConstants.brokerPort;
@@ -38,11 +46,29 @@ class SimulatorService {
         .withWillQos(MqttQos.atLeastOnce);
     _client!.connectionMessage = connMess;
 
+    _client!.onDisconnected = () {
+      final reason = _client?.connectionStatus?.returnCode?.toString() ?? 'Unknown';
+      debugPrint('Simulator: Disconnected. Reason: $reason. Reconnecting in 3s...');
+      _timer?.cancel();
+      Future.delayed(const Duration(seconds: 3), _connectLoop);
+    };
+
     try {
+      debugPrint('Simulator: Connecting (SecureWeb: $_useSecureWeb)...');
       await _client!.connect();
       debugPrint('Simulator: Connected to broker');
     } catch (e) {
       debugPrint('Simulator: Connection failed - $e');
+      _client?.disconnect();
+      
+      if (kIsWeb && !_useSecureWeb) {
+        debugPrint('Simulator: Web connection failed. Falling back to secure WSS (8884)...');
+        _useSecureWeb = true;
+        Future.delayed(const Duration(milliseconds: 500), _connectLoop);
+        return;
+      }
+      
+      Future.delayed(const Duration(seconds: 3), _connectLoop);
       return;
     }
 

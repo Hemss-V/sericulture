@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mqtt_client/mqtt_client.dart';
@@ -18,6 +19,7 @@ class MqttService extends StateNotifier<String> {
 
   MqttClient? _client;
   Timer? _reconnectTimer;
+  bool _useSecureWeb = false;
 
   final _sensorCtrl = StreamController<SensorData>.broadcast();
   final _actuatorCtrl = StreamController<ActuatorStatus>.broadcast();
@@ -29,8 +31,10 @@ class MqttService extends StateNotifier<String> {
     if (state == 'connecting' || state == 'connected') return;
     state = 'connecting';
 
-    final clientId = '${MqttConstants.clientIdPrefix}app_${DateTime.now().millisecondsSinceEpoch}';
-    _client = getClient(MqttConstants.brokerHost, clientId);
+    // Keep client ID under 23 chars to prevent silent broker disconnects
+    final randId = Random().nextInt(99999);
+    final clientId = 'seri_a${DateTime.now().millisecondsSinceEpoch % 100000}_$randId';
+    _client = getClient(MqttConstants.brokerHost, clientId, isSecure: _useSecureWeb);
 
     // Only set raw TCP port if running native. Factory handles WS port for Web.
     if (!kIsWeb) {
@@ -48,11 +52,20 @@ class MqttService extends StateNotifier<String> {
     _client!.connectionMessage = connMess;
 
     try {
-      debugPrint('MQTT App: Connecting to ${MqttConstants.brokerHost}...');
+      debugPrint('MQTT App: Connecting to ${MqttConstants.brokerHost} (SecureWeb: $_useSecureWeb)...');
       await _client!.connect();
     } catch (e) {
       debugPrint('MQTT App: Connection failed - $e');
       _client!.disconnect();
+      
+      if (kIsWeb && !_useSecureWeb) {
+        debugPrint('MQTT App: Web connection on port 8000 failed. Falling back to secure WSS (8884)...');
+        _useSecureWeb = true;
+        state = 'disconnected';
+        _scheduleReconnect(delayMs: 500); // Quick retry for fallback
+        return;
+      }
+      
       state = 'error';
       _scheduleReconnect();
       return;
@@ -100,16 +113,17 @@ class MqttService extends StateNotifier<String> {
   }
 
   void _onDisconnected() {
-    debugPrint('MQTT App: Disconnected');
+    final reason = _client?.connectionStatus?.returnCode?.toString() ?? 'Unknown';
+    debugPrint('MQTT App: Disconnected. Reason: $reason');
     if (state != 'disconnected') { // Unintentional disconnect
       state = 'error';
       _scheduleReconnect();
     }
   }
 
-  void _scheduleReconnect() {
+  void _scheduleReconnect({int delayMs = 3000}) {
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 5), () {
+    _reconnectTimer = Timer(Duration(milliseconds: delayMs), () {
       debugPrint('MQTT App: Auto-reconnecting...');
       connect();
     });
